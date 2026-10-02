@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import axios from "axios";
 
 import { getApiErrorMessage } from "@/lib/api-error";
@@ -64,6 +64,12 @@ const quizzesSlice = createSlice({
   name: "quizzes",
   initialState,
   reducers: {
+    // Newest first, matching the order returned by GET /quizzes.
+    quizAdded(state, action: PayloadAction<QuizListItem>) {
+      if (!state.items.some((quiz) => quiz.id === action.payload.id)) {
+        state.items.unshift(action.payload);
+      }
+    },
     clearDeleteError(state) {
       state.deleteError = null;
     },
@@ -97,6 +103,6 @@ const quizzesSlice = createSlice({
   },
 });
 
-export const { clearDeleteError } = quizzesSlice.actions;
+export const { quizAdded, clearDeleteError } = quizzesSlice.actions;
 
 export default quizzesSlice.reducer;

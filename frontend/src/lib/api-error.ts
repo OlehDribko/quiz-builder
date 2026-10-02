@@ -13,3 +13,13 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
 
   return error.response.data?.error ?? fallback;
 }
+
+export function getApiErrorDetails(error: unknown): string[] {
+  if (!axios.isAxiosError<ApiErrorResponse>(error)) {
+    return [];
+  }
+
+  return (error.response?.data?.details ?? []).map(({ path, message }) =>
+    path ? `${path}: ${message}` : message,
+  );
+}
