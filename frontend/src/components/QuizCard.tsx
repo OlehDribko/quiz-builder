@@ -1,15 +1,12 @@
 import Link from "next/link";
 
+import { formatQuestionCount } from "@/lib/format";
 import type { QuizListItem } from "@/types/quiz";
 
 interface QuizCardProps {
   quiz: QuizListItem;
   isDeleting: boolean;
   onDelete: (quiz: QuizListItem) => void;
-}
-
-function formatQuestionCount(count: number): string {
-  return `${count} ${count === 1 ? "question" : "questions"}`;
 }
 
 export default function QuizCard({ quiz, isDeleting, onDelete }: QuizCardProps) {

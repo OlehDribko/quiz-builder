@@ -23,3 +23,7 @@ export function getApiErrorDetails(error: unknown): string[] {
     path ? `${path}: ${message}` : message,
   );
 }
+
+export function isNotFoundError(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 404;
+}
