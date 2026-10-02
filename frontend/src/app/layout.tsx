@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
+import AppHeader from "@/components/AppHeader";
+import StoreProvider from "@/store/StoreProvider";
+
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,17 +17,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Quiz Builder",
+  title: {
+    default: "Quiz Builder",
+    template: "%s | Quiz Builder",
+  },
   description: "Create and manage quizzes",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <body className="flex min-h-full flex-col">
+        <StoreProvider>
+          <AppHeader />
+          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+            {children}
+          </main>
+        </StoreProvider>
+      </body>
     </html>
   );
 }
