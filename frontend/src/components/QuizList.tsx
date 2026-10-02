@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { toast } from "react-toastify";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { clearDeleteError, deleteQuiz, fetchQuizzes } from "@/store/quizzesSlice";
+import { requestQuizDeletion } from "@/store/quizDeletion";
+import { fetchQuizzes } from "@/store/quizzesSlice";
 import type { QuizListItem } from "@/types/quiz";
 
 import QuizCard from "./QuizCard";
@@ -60,9 +62,7 @@ function EmptyState() {
 
 export default function QuizList() {
   const dispatch = useAppDispatch();
-  const { items, status, error, deletingIds, deleteError } = useAppSelector(
-    (state) => state.quizzes,
-  );
+  const { items, status, error } = useAppSelector((state) => state.quizzes);
 
   useEffect(() => {
     if (status === "idle") {
@@ -70,10 +70,20 @@ export default function QuizList() {
     }
   }, [status, dispatch]);
 
+  // No confirmation dialog: the quiz is hidden immediately and an Undo toast offers recovery.
   const handleDelete = (quiz: QuizListItem) => {
-    if (window.confirm(`Delete "${quiz.title}"? This cannot be undone.`)) {
-      void dispatch(deleteQuiz(quiz.id));
-    }
+    dispatch(requestQuizDeletion(quiz));
+  };
+
+  // The inline error panel covers the first failure; a toast confirms that a retry also failed.
+  const handleRetry = () => {
+    dispatch(fetchQuizzes())
+      .unwrap()
+      .catch(() => {
+        toast.error("Still unable to load quizzes. Please try again later.", {
+          toastId: "quizzes-retry-failed",
+        });
+      });
   };
 
   if (status === "idle" || status === "loading") {
@@ -81,12 +91,7 @@ export default function QuizList() {
   }
 
   if (status === "failed") {
-    return (
-      <ErrorState
-        message={error ?? "Failed to load quizzes."}
-        onRetry={() => void dispatch(fetchQuizzes())}
-      />
-    );
+    return <ErrorState message={error ?? "Failed to load quizzes."} onRetry={handleRetry} />;
   }
 
   if (items.length === 0) {
@@ -94,33 +99,10 @@ export default function QuizList() {
   }
 
   return (
-    <div className="space-y-4">
-      {deleteError && (
-        <div
-          role="alert"
-          className="flex items-start justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-        >
-          <p>{deleteError}</p>
-          <button
-            type="button"
-            onClick={() => dispatch(clearDeleteError())}
-            aria-label="Dismiss error"
-            className="shrink-0 rounded font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-      <ul className={gridClassName}>
-        {items.map((quiz) => (
-          <QuizCard
-            key={quiz.id}
-            quiz={quiz}
-            isDeleting={deletingIds.includes(quiz.id)}
-            onDelete={handleDelete}
-          />
-        ))}
-      </ul>
-    </div>
+    <ul className={gridClassName}>
+      {items.map((quiz) => (
+        <QuizCard key={quiz.id} quiz={quiz} onDelete={handleDelete} />
+      ))}
+    </ul>
   );
 }

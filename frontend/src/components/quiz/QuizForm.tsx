@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { FormProvider, useFieldArray, useForm } from "react-hook-form";
+import { toast } from "react-toastify";
 
 import { getApiErrorDetails, getApiErrorMessage } from "@/lib/api-error";
 import {
@@ -42,15 +43,11 @@ function toQuestionPayload(question: QuestionFormValues): CreateQuestionPayload 
   }
 }
 
-interface SubmitError {
-  message: string;
-  details: string[];
-}
-
 export default function QuizForm() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const [submitError, setSubmitError] = useState<SubmitError | null>(null);
+  // Backend validation details stay inline so they remain visible while the user fixes the form.
+  const [serverErrorDetails, setServerErrorDetails] = useState<string[]>([]);
   const submitLockRef = useRef(false);
 
   const methods = useForm<QuizFormValues>({
@@ -71,7 +68,7 @@ export default function QuizForm() {
   const isBusy = isSubmitting || isSubmitSuccessful;
 
   const onSubmit = async (values: QuizFormValues) => {
-    setSubmitError(null);
+    setServerErrorDetails([]);
     const payload: CreateQuizPayload = {
       title: values.title,
       questions: values.questions.map(toQuestionPayload),
@@ -80,12 +77,11 @@ export default function QuizForm() {
     try {
       const quiz = await quizzesService.createQuiz(payload);
       dispatch(quizAdded({ id: quiz.id, title: quiz.title, questionCount: quiz.questions.length }));
+      toast.success("Quiz created successfully");
       router.push("/quizzes");
     } catch (error) {
-      setSubmitError({
-        message: getApiErrorMessage(error, "Failed to create the quiz. Please try again."),
-        details: getApiErrorDetails(error),
-      });
+      toast.error(`Could not create the quiz: ${getApiErrorMessage(error, "Please try again.")}`);
+      setServerErrorDetails(getApiErrorDetails(error));
       // Rethrow so React Hook Form does not mark the submission as successful.
       throw error;
     }
@@ -107,7 +103,7 @@ export default function QuizForm() {
       onSubmit,
       releaseSubmitLock,
     )(event).catch(() => {
-      // The error is already shown via submitError.
+      // The error is already shown via toast and serverErrorDetails.
       submitLockRef.current = false;
     });
   };
@@ -161,19 +157,17 @@ export default function QuizForm() {
           + Add question
         </button>
 
-        {submitError && (
+        {serverErrorDetails.length > 0 && (
           <div
             role="alert"
             className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
           >
-            <p className="font-medium">{submitError.message}</p>
-            {submitError.details.length > 0 && (
-              <ul className="mt-2 list-disc space-y-1 pl-5">
-                {submitError.details.map((detail) => (
-                  <li key={detail}>{detail}</li>
-                ))}
-              </ul>
-            )}
+            <p className="font-medium">The server rejected the quiz. Please fix the following:</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {serverErrorDetails.map((detail) => (
+                <li key={detail}>{detail}</li>
+              ))}
+            </ul>
           </div>
         )}
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import { toast } from "react-toastify";
 
 import { getApiErrorMessage, isNotFoundError } from "@/lib/api-error";
 import { formatDate, formatQuestionCount } from "@/lib/format";
@@ -90,11 +91,20 @@ export default function QuizDetails({ quizId }: QuizDetailsProps) {
       })
       .catch((error: unknown) => {
         if (ignore) return;
-        setState(
-          isNotFoundError(error)
-            ? { status: "notFound" }
-            : { status: "failed", error: getApiErrorMessage(error, "Failed to load the quiz.") },
-        );
+        if (isNotFoundError(error)) {
+          setState({ status: "notFound" });
+          return;
+        }
+        setState({
+          status: "failed",
+          error: getApiErrorMessage(error, "Failed to load the quiz."),
+        });
+        // The inline panel covers the first failure; a toast confirms that a retry also failed.
+        if (attempt > 0) {
+          toast.error("Still unable to load the quiz. Please try again later.", {
+            toastId: "quiz-details-retry-failed",
+          });
+        }
       });
 
     return () => {

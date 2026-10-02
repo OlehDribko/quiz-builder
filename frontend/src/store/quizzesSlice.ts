@@ -1,5 +1,4 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import axios from "axios";
 
 import { getApiErrorMessage } from "@/lib/api-error";
 import * as quizzesService from "@/services/quizzes.service";
@@ -9,16 +8,15 @@ export interface QuizzesState {
   items: QuizListItem[];
   status: "idle" | "loading" | "succeeded" | "failed";
   error: string | null;
-  deletingIds: number[];
-  deleteError: string | null;
+  /** Quizzes hidden from the list while their delete can still be undone. */
+  pendingDeletionIds: number[];
 }
 
 const initialState: QuizzesState = {
   items: [],
   status: "idle",
   error: null,
-  deletingIds: [],
-  deleteError: null,
+  pendingDeletionIds: [],
 };
 
 interface ThunkConfig {
@@ -41,25 +39,6 @@ export const fetchQuizzes = createAsyncThunk<QuizListItem[], void, ThunkConfig>(
   },
 );
 
-export const deleteQuiz = createAsyncThunk<number, number, ThunkConfig>(
-  "quizzes/deleteQuiz",
-  async (id, { rejectWithValue }) => {
-    try {
-      await quizzesService.deleteQuiz(id);
-      return id;
-    } catch (error) {
-      // The quiz is already gone on the server, so removing it locally is the correct outcome.
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        return id;
-      }
-      return rejectWithValue(getApiErrorMessage(error, "Failed to delete the quiz."));
-    }
-  },
-  {
-    condition: (id, { getState }) => !getState().quizzes.deletingIds.includes(id),
-  },
-);
-
 const quizzesSlice = createSlice({
   name: "quizzes",
   initialState,
@@ -70,8 +49,25 @@ const quizzesSlice = createSlice({
         state.items.unshift(action.payload);
       }
     },
-    clearDeleteError(state) {
-      state.deleteError = null;
+    quizRemovedOptimistically(state, action: PayloadAction<number>) {
+      state.items = state.items.filter((quiz) => quiz.id !== action.payload);
+      if (!state.pendingDeletionIds.includes(action.payload)) {
+        state.pendingDeletionIds.push(action.payload);
+      }
+    },
+    quizRestored(state, action: PayloadAction<QuizListItem>) {
+      const quiz = action.payload;
+      state.pendingDeletionIds = state.pendingDeletionIds.filter((id) => id !== quiz.id);
+      if (state.items.some((item) => item.id === quiz.id)) {
+        return;
+      }
+      // The list is newest first and ids grow with creation time, so ordering by id restores
+      // the original position even when several quizzes are restored in any order.
+      const position = state.items.findIndex((item) => item.id < quiz.id);
+      state.items.splice(position === -1 ? state.items.length : position, 0, quiz);
+    },
+    quizDeletionCompleted(state, action: PayloadAction<number>) {
+      state.pendingDeletionIds = state.pendingDeletionIds.filter((id) => id !== action.payload);
     },
   },
   extraReducers: (builder) => {
@@ -82,27 +78,17 @@ const quizzesSlice = createSlice({
       })
       .addCase(fetchQuizzes.fulfilled, (state, action) => {
         state.status = "succeeded";
-        state.items = action.payload;
+        // Keep quizzes awaiting permanent deletion hidden if the list is reloaded meanwhile.
+        state.items = action.payload.filter((quiz) => !state.pendingDeletionIds.includes(quiz.id));
       })
       .addCase(fetchQuizzes.rejected, (state, action) => {
         state.status = "failed";
         state.error = action.payload ?? "Failed to load quizzes.";
-      })
-      .addCase(deleteQuiz.pending, (state, action) => {
-        state.deletingIds.push(action.meta.arg);
-        state.deleteError = null;
-      })
-      .addCase(deleteQuiz.fulfilled, (state, action) => {
-        state.items = state.items.filter((quiz) => quiz.id !== action.payload);
-        state.deletingIds = state.deletingIds.filter((id) => id !== action.payload);
-      })
-      .addCase(deleteQuiz.rejected, (state, action) => {
-        state.deletingIds = state.deletingIds.filter((id) => id !== action.meta.arg);
-        state.deleteError = action.payload ?? "Failed to delete the quiz.";
       });
   },
 });
 
-export const { quizAdded, clearDeleteError } = quizzesSlice.actions;
+export const { quizAdded, quizRemovedOptimistically, quizRestored, quizDeletionCompleted } =
+  quizzesSlice.actions;
 
 export default quizzesSlice.reducer;

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import AppHeader from "@/components/AppHeader";
+import ToastProvider from "@/components/ToastProvider";
 import StoreProvider from "@/store/StoreProvider";
 
 import "./globals.css";
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             {children}
           </main>
         </StoreProvider>
+        <ToastProvider />
       </body>
     </html>
   );
